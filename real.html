@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>USDT ↔ SOL Swap dApp</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      max-width: 480px;
+      margin: auto;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f0f2f5;
+      color: #222;
+    }
+    h2 {
+      text-align: center;
+    }
+    select, input, button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #0077ff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #005fcc;
+    }
+    #walletStatus {
+      margin-top: 10px;
+      font-weight: bold;
+      text-align: center;
+    }
+    #message {
+      margin-top: 15px;
+      min-height: 50px;
+      text-align: center;
+    }
+    a.txlink {
+      color: #0077ff;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>USDT ↔ SOL Swap dApp</h2>
+
+  <button id="connectWalletBtn">Connect Phantom Wallet</button>
+  <div id="walletStatus">Wallet not connected</div>
+
+  <select id="swapDirection">
+    <option value="usdt-to-sol">USDT → SOL</option>
+    <option value="sol-to-usdt">SOL → USDT</option>
+  </select>
+
+  <input type="number" id="amountInput" placeholder="Enter amount to swap" min="0" step="any" />
+
+  <button id="swapBtn">Swap Now</button>
+
+  <div id="message"></div>
+
+  <script type="module">
+    import {
+      Connection,
+      PublicKey,
+      VersionedTransaction
+    } from "https://cdn.skypack.dev/@solana/web3.js";
+
+    const connection = new Connection("https://api.mainnet-beta.solana.com");
+
+    const USDT_MINT = "Es9vMFrzaCERiTxz5G2ZyyuRNPQ5TC3gXkJqB6HZ4iGz";
+    const SOL_MINT = "So11111111111111111111111111111111111111112";
+    const FEE_WALLET = "HtA663NyM3EGzQMx9pCQFS7n79ktKDvSVJZmiogjwqLJ";
+
+    let userPublicKey = null;
+
+    const connectBtn = document.getElementById("connectWalletBtn");
+    const walletStatus = document.getElementById("walletStatus");
+    const swapBtn = document.getElementById("swapBtn");
+    const messageEl = document.getElementById("message");
+
+    connectBtn.onclick = async () => {
+      if (window.solana && window.solana.isPhantom) {
+        try {
+          const resp = await window.solana.connect();
+          userPublicKey = resp.publicKey.toString();
+          walletStatus.textContent = "Connected: " + userPublicKey;
+          messageEl.textContent = "";
+        } catch (e) {
+          alert("Wallet connection rejected or failed.");
+        }
+      } else {
+        alert("Phantom wallet not found. Please install Phantom.");
+      }
+    };
+
+    swapBtn.onclick = async () => {
+      messageEl.style.color = "black";
+      if (!userPublicKey) {
+        alert("Please connect your Phantom wallet first.");
+        return;
+      }
+
+      const amountStr = document.getElementById("amountInput").value;
+      const direction = document.getElementById("swapDirection").value;
+      const amount = parseFloat(amountStr);
+
+      if (!amount || amount <= 0) {
+        alert("Please enter a valid amount.");
+        return;
+      }
+
+      messageEl.textContent = "Preparing swap...";
+
+      let inputMint, outputMint, inputDecimals, outputDecimals;
+      if (direction === "usdt-to-sol") {
+        inputMint = USDT_MINT;
+        outputMint = SOL_MINT;
+        inputDecimals = 6;
+        outputDecimals = 9;
+      } else {
+        inputMint = SOL_MINT;
+        outputMint = USDT_MINT;
+        inputDecimals = 9;
+        outputDecimals = 6;
+      }
+
+      // Calculate fee & amount after fee
+      const fee = amount * 0.0003; // 0.03%
+      const amountAfterFee = amount - fee;
+
+      if (amountAfterFee <= 0) {
+        alert("Amount too small after fee deduction.");
+        return;
+      }
+
+      const amountIn = Math.floor(amountAfterFee * (10 ** inputDecimals));
+
+      const quoteUrl = `https://quote-api.jup.ag/v6/swap?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amountIn}&slippageBps=50&feeBps=3&feeAccount=${FEE_WALLET}&userPublicKey=${userPublicKey}`;
+
+      try {
+        const res = await fetch(quoteUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await res.json();
+
+        if (!data || !data.swapTransaction) {
+          messageEl.style.color = "red";
+          messageEl.textContent = "Swap transaction could not be generated.";
+          return;
+        }
+
+        // Deserialize transaction
+        const swapTxBase64 = data.swapTransaction;
+        const txBuffer = Uint8Array.from(atob(swapTxBase64), c => c.charCodeAt(0));
+        const transaction = VersionedTransaction.deserialize(txBuffer);
+
+        // Sign and send transaction
+        messageEl.textContent = "Please approve the transaction in Phantom...";
+
+        const signedTx = await window.solana.signAndSendTransaction(transaction);
+
+        // Wait for confirmation
+        await connection.confirmTransaction(signedTx.signature, "confirmed");
+
+        messageEl.style.color = "green";
+        messageEl.innerHTML = `
+          Swap successful!<br />
+          <a href="https://solscan.io/tx/${signedTx.signature}" target="_blank" class="txlink">View on Solscan</a><br />
+          Fee of ${fee.toFixed(inputDecimals)} ${direction === "usdt-to-sol" ? "USDT" : "SOL"} sent to your wallet.
+        `;
+      } catch (error) {
+        console.error(error);
+        messageEl.style.color = "red";
+        messageEl.textContent = "Swap failed or transaction was rejected.";
+      }
+    };
+  </script>
+
+</body>
+</html>
