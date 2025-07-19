@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Swap USDT ⇄ SOL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Arial', sans-serif;
+      background: #f5f7fb;
+      color: #333;
+      max-width: 480px;
+      margin: auto;
+      padding: 20px;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    label {
+      font-weight: bold;
+      margin-top: 15px;
+      display: block;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 12px;
+      font-size: 16px;
+      margin-top: 8px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #5a32ea;
+      color: white;
+      border: none;
+      margin-top: 24px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #4728c9;
+    }
+    .info {
+      font-size: 14px;
+      color: #555;
+      margin-top: 20px;
+      text-align: center;
+    }
+    code {
+      background: #eee;
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Swap USDT ⇄ SOL</h2>
+
+  <label for="direction">Swap Direction</label>
+  <select id="direction">
+    <option value="usdt-to-sol">USDT → SOL</option>
+    <option value="sol-to-usdt">SOL → USDT</option>
+  </select>
+
+  <label for="amount">Amount</label>
+  <input type="number" id="amount" placeholder="Enter amount to swap" min="0.000001" step="any" />
+
+  <button onclick="swap()">Open in Phantom</button>
+
+  <div class="info">
+    After clicking, Phantom will open and ask to approve the transaction.<br>
+    0.03% fee will go to:<br>
+    <code>4EkpmcAnw2F9fMj8U6ySofZNmWyAkGkRhp3MMc7ZLLsL</code>
+  </div>
+
+  <script>
+    const USDT_MINT = "Es9vMFrzaCERiTxz5G2ZyyuRNPQ5TC3gXkJqB6HZ4iGz";
+    const SOL_MINT = "So11111111111111111111111111111111111111112";
+    const FEE_WALLET = "4EkpmcAnw2F9fMj8U6ySofZNmWyAkGkRhp3MMc7ZLLsL";
+
+    function swap() {
+      const direction = document.getElementById("direction").value;
+      const amount = parseFloat(document.getElementById("amount").value);
+
+      if (!amount || amount <= 0) {
+        alert("Enter a valid amount.");
+        return;
+      }
+
+      let inputMint, outputMint, decimals;
+      if (direction === "usdt-to-sol") {
+        inputMint = USDT_MINT;
+        outputMint = SOL_MINT;
+        decimals = 6;
+      } else {
+        inputMint = SOL_MINT;
+        outputMint = USDT_MINT;
+        decimals = 9;
+      }
+
+      const amountInUnits = Math.floor(amount * Math.pow(10, decimals));
+      const jupiterLink = `https://jup.ag/swap/${inputMint}-${outputMint}?amount=${amountInUnits}&feeBps=3&feeAccount=${FEE_WALLET}`;
+
+      window.location.href = jupiterLink;
+    }
+  </script>
+
+</body>
+</html>
